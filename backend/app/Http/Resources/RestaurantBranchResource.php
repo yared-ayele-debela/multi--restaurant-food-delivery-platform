@@ -23,6 +23,8 @@ class RestaurantBranchResource extends JsonResource
             'latitude' => (string) $this->latitude,
             'longitude' => (string) $this->longitude,
             'phone' => $this->phone,
+            'image_path' => $this->image_path,
+            'image_url' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'delivery_radius_km' => (string) $this->delivery_radius,
             'preparation_time_minutes' => $this->preparation_time,
             'is_active' => $this->is_active,

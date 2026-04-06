@@ -40,6 +40,13 @@
                 </li>
 
                 <li>
+                    <a href="{{ route('admin.commissions.index') }}">
+                        <i data-feather="dollar-sign"></i>
+                        <span data-key="t-commissions">Commission Ledger</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
                         <span data-key="t-apps">

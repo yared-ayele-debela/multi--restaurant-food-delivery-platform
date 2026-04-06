@@ -7,7 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\Setting;
 use App\Models\User;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -40,6 +43,26 @@ class DashboardController extends Controller
             ->whereYear('created_at', now()->year)
             ->where('payment_status', 'paid')
             ->sum('total');
+
+        $platformWallet = Wallet::query()
+            ->where('holder_type', Setting::class)
+            ->where('holder_id', Setting::getInstance()->id)
+            ->first();
+
+        $platformWalletBalance = (float) ($platformWallet?->balance ?? 0);
+        $totalCommissionCollected = $platformWallet
+            ? (float) WalletTransaction::query()
+                ->where('wallet_id', $platformWallet->id)
+                ->where('transaction_type', 'platform_commission')
+                ->sum('amount')
+            : 0.0;
+        $todayCommissionCollected = $platformWallet
+            ? (float) WalletTransaction::query()
+                ->where('wallet_id', $platformWallet->id)
+                ->where('transaction_type', 'platform_commission')
+                ->whereDate('created_at', today())
+                ->sum('amount')
+            : 0.0;
 
         // Orders by Status for Chart
         $ordersByStatus = Order::selectRaw('status, count(*) as count')
@@ -89,6 +112,9 @@ class DashboardController extends Controller
             'todayRevenue',
             'weekRevenue',
             'monthRevenue',
+            'platformWalletBalance',
+            'totalCommissionCollected',
+            'todayCommissionCollected',
             'ordersByStatus',
             'chartData',
             'recentOrders',

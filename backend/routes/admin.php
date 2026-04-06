@@ -3,6 +3,7 @@
 
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\CommissionLedgerController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\WithdrawalRequestController;
@@ -36,6 +37,8 @@ Route::middleware(['auth', 'admin', 'web'])->prefix('admin')->name('admin.')->gr
     Route::get('withdrawals', [WithdrawalRequestController::class, 'index'])->name('withdrawals.index');
     Route::post('withdrawals/{withdrawalRequest}/complete', [WithdrawalRequestController::class, 'complete'])->name('withdrawals.complete');
     Route::post('withdrawals/{withdrawalRequest}/reject', [WithdrawalRequestController::class, 'reject'])->name('withdrawals.reject');
+    Route::get('commissions', [CommissionLedgerController::class, 'index'])->name('commissions.index');
+    Route::get('commissions/export/csv', [CommissionLedgerController::class, 'exportCsv'])->name('commissions.export-csv');
 
     Route::get('restaurants', [\App\Http\Controllers\Admin\RestaurantController::class, 'index'])->name('restaurants.index');
     Route::get('restaurants/{restaurant}', [\App\Http\Controllers\Admin\RestaurantController::class, 'show'])->name('restaurants.show');

@@ -46,7 +46,9 @@ class RestaurantController extends Controller
 
     public function show(Restaurant $restaurant): View
     {
-        $restaurant->load(['owner', 'branches', 'hours', 'categories' => function ($query) {
+        $restaurant->load(['owner', 'images' => function ($query) {
+            $query->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id');
+        }, 'branches', 'hours', 'categories' => function ($query) {
             $query->withCount('products');
         }]);
 

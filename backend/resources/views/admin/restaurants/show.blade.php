@@ -140,6 +140,31 @@
         <!-- Restaurant Info -->
         <div class="col-xl-4">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Restaurant Images</h4>
+                    <span class="badge bg-primary">{{ $restaurant->images->count() }}/5</span>
+                </div>
+                <div class="card-body">
+                    @if($restaurant->images->count() > 0)
+                        <div class="row g-2">
+                            @foreach($restaurant->images as $image)
+                                <div class="col-6">
+                                    <div class="position-relative">
+                                        <img src="{{ asset('storage/'.$image->image_path) }}" alt="{{ $image->alt_text ?: $restaurant->name }}" class="img-fluid rounded border" style="width: 100%; height: 120px; object-fit: cover;">
+                                        @if($image->is_primary)
+                                            <span class="badge bg-success position-absolute" style="top: 8px; left: 8px;">Primary</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-muted mb-0">No restaurant images uploaded yet.</p>
+                    @endif
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-header">
                     <h4 class="card-title mb-0">Restaurant Information</h4>
                 </div>
@@ -210,6 +235,15 @@
         <!-- Branches -->
         <div class="col-xl-8">
             <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">Restaurant & Branch Locations</h4>
+                </div>
+                <div class="card-body">
+                    <div id="admin-restaurant-location-map" style="height: 360px; border-radius: 8px;"></div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Branches</h4>
                     <span class="badge bg-primary">{{ $restaurant->branches->count() }} total</span>
@@ -221,18 +255,17 @@
                                 <div class="col-md-6 mb-3">
                                     <div class="card border h-100">
                                         <div class="card-body">
+                                            @if($branch->image_path)
+                                                <img src="{{ asset('storage/'.$branch->image_path) }}" alt="{{ $branch->name }}" class="img-fluid rounded mb-3 border" style="width: 100%; height: 140px; object-fit: cover;">
+                                            @endif
                                             <h5 class="card-title">{{ $branch->name }}</h5>
                                             <p class="card-text">
                                                 <i class="mdi mdi-map-marker me-1 text-primary"></i>
-                                                {{ $branch->address_line }}, {{ $branch->city }}
+                                                {{ $branch->address }}, {{ $branch->city }}
                                             </p>
                                             <p class="card-text mb-1">
                                                 <i class="mdi mdi-phone me-1 text-success"></i>
                                                 {{ $branch->phone ?? 'N/A' }}
-                                            </p>
-                                            <p class="card-text mb-1">
-                                                <i class="mdi mdi-email me-1 text-info"></i>
-                                                {{ $branch->email ?? 'N/A' }}
                                             </p>
                                             <p class="card-text mb-0">
                                                 <i class="mdi mdi-crosshairs-gps me-1 text-warning"></i>
@@ -349,3 +382,79 @@
     </div>
 </div>
 @endsection
+
+@push('styles')
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+@endpush
+
+@push('scripts')
+    @php
+        $branchesForMap = $restaurant->branches->map(function ($branch) {
+            return [
+                'name' => $branch->name,
+                'address' => $branch->address,
+                'city' => $branch->city,
+                'lat' => $branch->latitude,
+                'lng' => $branch->longitude,
+            ];
+        })->values();
+    @endphp
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        (function () {
+            const mainLat = Number(@json($restaurant->latitude));
+            const mainLng = Number(@json($restaurant->longitude));
+            const hasMainCoords = Number.isFinite(mainLat) && Number.isFinite(mainLng);
+            const fallbackCenter = [9.03, 38.74];
+
+            const map = L.map('admin-restaurant-location-map').setView(
+                hasMainCoords ? [mainLat, mainLng] : fallbackCenter,
+                hasMainCoords ? 12 : 6
+            );
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            const points = [];
+            const restaurantIcon = L.divIcon({
+                className: 'restaurant-main-marker',
+                html: '<div style="width:34px;height:34px;border-radius:50%;background:#556ee6;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);"><i class="mdi mdi-storefront" style="font-size:18px;line-height:1;"></i></div>',
+                iconSize: [34, 34],
+                iconAnchor: [17, 17],
+                popupAnchor: [0, -14],
+            });
+            const branchIcon = L.divIcon({
+                className: 'restaurant-branch-marker',
+                html: '<div style="width:30px;height:30px;border-radius:50%;background:#f1b44c;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.22);"><i class="mdi mdi-map-marker-radius" style="font-size:16px;line-height:1;"></i></div>',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15],
+                popupAnchor: [0, -12],
+            });
+
+            if (hasMainCoords) {
+                const mainMarker = L.marker([mainLat, mainLng], { icon: restaurantIcon }).addTo(map);
+                mainMarker.bindPopup(`<strong>Main Restaurant</strong><br>{{ e($restaurant->name) }}<br>{{ e($restaurant->address_line) }}, {{ e($restaurant->city) }}`);
+                points.push([mainLat, mainLng]);
+            }
+
+            const branches = @json($branchesForMap);
+
+            branches.forEach(function (branch) {
+                const lat = Number(branch.lat);
+                const lng = Number(branch.lng);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                    return;
+                }
+                const marker = L.marker([lat, lng], { icon: branchIcon }).addTo(map);
+                marker.bindPopup(`<strong>Branch:</strong> ${branch.name}<br>${branch.address}, ${branch.city}`);
+                points.push([lat, lng]);
+            });
+
+            if (points.length > 1) {
+                map.fitBounds(points, { padding: [30, 30] });
+            }
+        })();
+    </script>
+@endpush

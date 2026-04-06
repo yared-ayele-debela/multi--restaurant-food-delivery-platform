@@ -1,13 +1,26 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageScaffold from "../components/PageScaffold";
 import { Card, Drawer, Skeleton } from "../components/ui/primitives";
 import { fetchRestaurants, toMediaUrl } from "../api/catalogApi";
-import { useEffect } from "react";
+import { useLocationContext } from "../context/LocationContext";
+import { haversineDistanceKm, parseCoordinate } from "../utils/location";
 import RestaurantCard from "../components/cards/RestaurantCard";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 function toCurrency(value) {
   const amount = Number.parseFloat(value || "0");
   return `$${amount.toFixed(2)}`;
+}
+
+function toRestaurantDistance(restaurant, location) {
+  if (!location) {
+    return null;
+  }
+  return haversineDistanceKm(
+    { lat: location.lat, lng: location.lng },
+    { lat: parseCoordinate(restaurant.latitude), lng: parseCoordinate(restaurant.longitude) },
+  );
 }
 
 export default function RestaurantsPage() {
@@ -24,9 +37,26 @@ export default function RestaurantsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [mapAreaEnabled, setMapAreaEnabled] = useState(false);
+  const [radiusKm, setRadiusKm] = useState(5);
+  const [selectedAreaCenter, setSelectedAreaCenter] = useState(null);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ currentPage: 1, lastPage: 1 });
   const [restaurants, setRestaurants] = useState([]);
+  const areaMapRef = useRef(null);
+  const areaMarkerRef = useRef(null);
+  const areaCircleRef = useRef(null);
+  const { location, openPicker } = useLocationContext();
+  const areaMarkerIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: "fd-area-marker",
+        html: '<div style="width:28px;height:28px;border-radius:999px;background:#D96C4A;border:2px solid #FFF8F0;box-shadow:0 3px 10px rgba(0,0,0,0.2);"></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      }),
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +85,70 @@ export default function RestaurantsPage() {
       mounted = false;
     };
   }, [page]);
+
+  useEffect(() => {
+    if (!selectedAreaCenter && location) {
+      setSelectedAreaCenter({ lat: location.lat, lng: location.lng });
+    }
+  }, [location, selectedAreaCenter]);
+
+  useEffect(() => {
+    const mapElement = document.getElementById("restaurants-area-map");
+    if (!mapAreaEnabled || !mapElement || areaMapRef.current) {
+      return;
+    }
+
+    const center = selectedAreaCenter || location || { lat: 9.03, lng: 38.74 };
+    const map = L.map("restaurants-area-map").setView([center.lat, center.lng], 12);
+    areaMapRef.current = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    const placeArea = (lat, lng) => {
+      setSelectedAreaCenter({ lat, lng });
+      if (!areaMarkerRef.current) {
+        areaMarkerRef.current = L.marker([lat, lng], { draggable: true, icon: areaMarkerIcon }).addTo(map);
+        areaMarkerRef.current.on("dragend", (event) => {
+          const point = event.target.getLatLng();
+          placeArea(point.lat, point.lng);
+        });
+      } else {
+        areaMarkerRef.current.setLatLng([lat, lng]);
+      }
+
+      if (!areaCircleRef.current) {
+        areaCircleRef.current = L.circle([lat, lng], {
+          radius: radiusKm * 1000,
+          color: "#E8B04A",
+          fillColor: "#E8B04A",
+          fillOpacity: 0.18,
+        }).addTo(map);
+      } else {
+        areaCircleRef.current.setLatLng([lat, lng]);
+      }
+    };
+
+    placeArea(center.lat, center.lng);
+    map.on("click", (event) => placeArea(event.latlng.lat, event.latlng.lng));
+
+    return () => {
+      map.remove();
+      areaMapRef.current = null;
+      areaMarkerRef.current = null;
+      areaCircleRef.current = null;
+    };
+  }, [mapAreaEnabled, location, selectedAreaCenter, areaMarkerIcon]);
+
+  useEffect(() => {
+    if (!areaCircleRef.current || !selectedAreaCenter) {
+      return;
+    }
+    areaCircleRef.current.setLatLng([selectedAreaCenter.lat, selectedAreaCenter.lng]);
+    areaCircleRef.current.setRadius(radiusKm * 1000);
+  }, [radiusKm, selectedAreaCenter]);
 
   const cityOptions = useMemo(() => {
     return [...new Set(restaurants.map((item) => (item.city || "").trim()).filter(Boolean))].sort((a, b) =>
@@ -115,6 +209,18 @@ export default function RestaurantsPage() {
         statusFilter === "all" || (statusFilter === "open" && isOpen) || (statusFilter === "closed" && !isOpen);
       const matchesFavorites = !favoritesOnly || favorites.includes(restaurant.slug);
       const matchesFreeDelivery = !freeDeliveryOnly || deliveryFee <= 0;
+      const restaurantLat = parseCoordinate(restaurant.latitude);
+      const restaurantLng = parseCoordinate(restaurant.longitude);
+      const distanceToAreaCenter =
+        mapAreaEnabled && selectedAreaCenter
+          ? haversineDistanceKm(
+              { lat: selectedAreaCenter.lat, lng: selectedAreaCenter.lng },
+              { lat: restaurantLat, lng: restaurantLng },
+            )
+          : null;
+      const matchesArea =
+        !mapAreaEnabled ||
+        (distanceToAreaCenter !== null && Number.isFinite(distanceToAreaCenter) && distanceToAreaCenter <= radiusKm);
 
       return (
         matchesSearch &&
@@ -123,11 +229,26 @@ export default function RestaurantsPage() {
         matchesCity &&
         matchesStatus &&
         matchesFavorites &&
-        matchesFreeDelivery
+        matchesFreeDelivery &&
+        matchesArea
       );
     });
 
     return [...matches].sort((a, b) => {
+      if (sortBy === "distance_asc" && location) {
+        const aDistance = haversineDistanceKm(
+          { lat: location.lat, lng: location.lng },
+          { lat: parseCoordinate(a.latitude), lng: parseCoordinate(a.longitude) },
+        );
+        const bDistance = haversineDistanceKm(
+          { lat: location.lat, lng: location.lng },
+          { lat: parseCoordinate(b.latitude), lng: parseCoordinate(b.longitude) },
+        );
+        if (aDistance === null && bDistance === null) return 0;
+        if (aDistance === null) return 1;
+        if (bDistance === null) return -1;
+        return aDistance - bDistance;
+      }
       if (sortBy === "name_desc") {
         return (b.name || "").localeCompare(a.name || "");
       }
@@ -156,6 +277,10 @@ export default function RestaurantsPage() {
     freeDeliveryOnly,
     favorites,
     restaurants,
+    mapAreaEnabled,
+    selectedAreaCenter,
+    radiusKm,
+    location,
   ]);
 
   const resetFilters = () => {
@@ -167,6 +292,8 @@ export default function RestaurantsPage() {
     setStatusFilter("all");
     setFavoritesOnly(false);
     setFreeDeliveryOnly(false);
+    setMapAreaEnabled(false);
+    setRadiusKm(5);
     setPage(1);
   };
 
@@ -182,6 +309,19 @@ export default function RestaurantsPage() {
   return (
     <PageScaffold title="Restaurants" subtitle="Search, filter, and discover nearby places.">
       <section className="space-y-3 rounded-2xl border border-[#E8B04A]/25 bg-[#F2E6D8] p-4 text-[#333333] shadow-[0_8px_20px_rgba(51,51,51,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E8B04A]/25 bg-[#FFF8F0] px-3 py-2">
+          <p className="text-sm">
+            Delivery location: <span className="font-medium">{location?.label || "Not set"}</span>
+          </p>
+          <button
+            type="button"
+            onClick={openPicker}
+            className="min-h-11 rounded-xl border border-[#E8B04A]/35 bg-[#FFF8F0] px-3 py-2 text-sm"
+          >
+            Change location
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <input
             placeholder="Search by name"
@@ -200,6 +340,7 @@ export default function RestaurantsPage() {
             <option value="fee_desc">Delivery fee: High to low</option>
             <option value="min_order_asc">Min order: Low to high</option>
             <option value="min_order_desc">Min order: High to low</option>
+            <option value="distance_asc">Distance: Nearest first</option>
           </select>
           <button
             type="button"
@@ -285,6 +426,35 @@ export default function RestaurantsPage() {
               />
               Free delivery only
             </label>
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#E8B04A]/25 bg-[#FFF8F0] px-3 text-sm">
+              <input
+                type="checkbox"
+                checked={mapAreaEnabled}
+                onChange={(event) => {
+                  setMapAreaEnabled(event.target.checked);
+                  setPage(1);
+                }}
+                className="h-4 w-4 rounded border-[#E8B04A]/60 text-[#E8B04A] focus:ring-[#E8B04A]/40"
+              />
+              Filter by map area
+            </label>
+            {mapAreaEnabled ? (
+              <div className="rounded-xl border border-[#E8B04A]/25 bg-[#FFF8F0] px-4 py-2.5 text-sm">
+                <label htmlFor="radiusKm" className="mb-1 block">
+                  Radius: {radiusKm} km
+                </label>
+                <input
+                  id="radiusKm"
+                  type="range"
+                  min="1"
+                  max="30"
+                  step="1"
+                  value={radiusKm}
+                  onChange={(event) => setRadiusKm(Number.parseInt(event.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+            ) : null}
             <div className="rounded-xl border border-[#E8B04A]/25 bg-[#FFF8F0] px-4 py-2.5 text-sm text-[#333333]/75">
               Live data from backend API • {filteredRestaurants.length} results on this page
             </div>
@@ -300,6 +470,14 @@ export default function RestaurantsPage() {
           </div>
         )}
       </section>
+      {mapAreaEnabled ? (
+        <section className="mt-4 overflow-hidden rounded-2xl border border-[#E8B04A]/25 bg-[#FFF8F0]">
+          <div id="restaurants-area-map" className="h-72 w-full" />
+          <div className="border-t border-[#E8B04A]/20 px-3 py-2 text-xs text-[#333333]/70">
+            Click or drag marker to select area center.
+          </div>
+        </section>
+      ) : null}
       <Drawer open={drawerOpen} title="Filter restaurants" onClose={() => setDrawerOpen(false)}>
         <div className="space-y-3">
           <select
@@ -313,6 +491,7 @@ export default function RestaurantsPage() {
             <option value="fee_desc">Delivery fee: High to low</option>
             <option value="min_order_asc">Min order: Low to high</option>
             <option value="min_order_desc">Min order: High to low</option>
+            <option value="distance_asc">Distance: Nearest first</option>
           </select>
           <select
             value={deliveryFeeRange}
@@ -442,6 +621,7 @@ export default function RestaurantsPage() {
         <>
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredRestaurants.map((restaurant) => (
+              // Show distance badge when user location and restaurant coordinates are available.
               <RestaurantCard
                 key={restaurant.slug}
                 href={`/restaurants/${restaurant.slug}`}
@@ -452,6 +632,7 @@ export default function RestaurantsPage() {
                 category={`Min ${toCurrency(restaurant.minimum_order_amount)} • ${restaurant.status || "active"}`}
                 deliveryFee={toCurrency(restaurant.delivery_fee)}
                 discountLabel="Popular"
+                distanceKm={toRestaurantDistance(restaurant, location)}
                 isFavorite={favorites.includes(restaurant.slug)}
                 onToggleFavorite={() => toggleFavorite(restaurant.slug)}
               />

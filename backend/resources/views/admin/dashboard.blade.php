@@ -111,7 +111,47 @@
                     </div>
                     <div class="text-nowrap">
                         <span class="badge bg-success-subtle text-success">${{ number_format($weekRevenue, 0) }}</span>
-                        <span class="ms-1 text-muted font-size-13">this week</span>
+                        <span class="ms-1 text-muted font-size-13">this week</span><br>
+                        <span class="badge bg-primary-subtle text-primary mt-1">
+                            Commission today: ${{ number_format($todayCommissionCollected, 2) }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-6 col-md-6">
+            <div class="card card-h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted mb-2 d-block">Platform Wallet Balance</span>
+                            <h4 class="mb-0">${{ number_format($platformWalletBalance, 2) }}</h4>
+                        </div>
+                        <div class="avatar-md">
+                            <span class="avatar-title rounded-circle bg-primary-subtle text-primary font-size-24">
+                                <i class="mdi mdi-wallet"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6 col-md-6">
+            <div class="card card-h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted mb-2 d-block">Total Commission Collected</span>
+                            <h4 class="mb-0">${{ number_format($totalCommissionCollected, 2) }}</h4>
+                        </div>
+                        <div class="avatar-md">
+                            <span class="avatar-title rounded-circle bg-info-subtle text-info font-size-24">
+                                <i class="mdi mdi-cash-multiple"></i>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -24,6 +24,7 @@ class RestaurantBranch extends Model
         'latitude',
         'longitude',
         'phone',
+        'image_path',
         'delivery_radius',
         'preparation_time',
         'is_active',

@@ -19,6 +19,7 @@
 <script src="{{asset('admin/dist/assets/js/pages/dashboard.init.js')}}"></script>
 
 <script src="{{asset('admin/dist/assets/js/app.js')}}"></script>
+@stack('scripts')
 
 </body>
 </html>

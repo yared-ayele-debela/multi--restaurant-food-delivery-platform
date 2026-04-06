@@ -9,6 +9,7 @@ export default function RestaurantCard({
   category,
   deliveryFee,
   discountLabel,
+  distanceKm,
   isFavorite = false,
   onToggleFavorite,
 }) {
@@ -24,6 +25,11 @@ export default function RestaurantCard({
         {discountLabel ? (
           <span className="absolute left-3 top-3 rounded-full bg-[#D96C4A] px-3 py-1 text-xs font-semibold text-white">
             {discountLabel}
+          </span>
+        ) : null}
+        {typeof distanceKm === "number" && Number.isFinite(distanceKm) ? (
+          <span className="absolute bottom-3 left-3 rounded-full bg-[#333333]/80 px-2.5 py-1 text-[11px] font-semibold text-[#FFF8F0]">
+            {distanceKm.toFixed(1)} km away
           </span>
         ) : null}
         <button

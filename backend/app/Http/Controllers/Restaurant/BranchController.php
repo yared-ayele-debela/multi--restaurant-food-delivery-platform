@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RestaurantBranch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class BranchController extends Controller
@@ -36,6 +37,7 @@ class BranchController extends Controller
 
         return view('restaurant.branches.create', [
             'restaurant' => $restaurant,
+            'geoapifyKey' => (string) config('services.geoapify.key', ''),
         ]);
     }
 
@@ -55,6 +57,7 @@ class BranchController extends Controller
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
             'phone' => ['nullable', 'string', 'max:20'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'delivery_radius' => ['nullable', 'numeric', 'min:0'],
             'preparation_time' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['boolean'],
@@ -62,6 +65,9 @@ class BranchController extends Controller
 
         $validated['restaurant_id'] = $restaurant->id;
         $validated['is_active'] = $request->boolean('is_active', true);
+        if ($request->hasFile('image')) {
+            $validated['image_path'] = $request->file('image')->store('branches/images', 'public');
+        }
 
         RestaurantBranch::create($validated);
 
@@ -79,6 +85,7 @@ class BranchController extends Controller
         return view('restaurant.branches.edit', [
             'branch' => $branch,
             'restaurant' => $restaurant,
+            'geoapifyKey' => (string) config('services.geoapify.key', ''),
         ]);
     }
 
@@ -98,12 +105,24 @@ class BranchController extends Controller
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
             'phone' => ['nullable', 'string', 'max:20'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'remove_image' => ['nullable', 'boolean'],
             'delivery_radius' => ['nullable', 'numeric', 'min:0'],
             'preparation_time' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['boolean'],
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
+        if ($request->boolean('remove_image') && $branch->image_path) {
+            Storage::disk('public')->delete($branch->image_path);
+            $validated['image_path'] = null;
+        }
+        if ($request->hasFile('image')) {
+            if ($branch->image_path) {
+                Storage::disk('public')->delete($branch->image_path);
+            }
+            $validated['image_path'] = $request->file('image')->store('branches/images', 'public');
+        }
 
         $branch->update($validated);
 
@@ -118,6 +137,9 @@ class BranchController extends Controller
         // Authorize using policy
         $this->authorize('updateBranch', $branch);
 
+        if ($branch->image_path) {
+            Storage::disk('public')->delete($branch->image_path);
+        }
         $branch->delete();
 
         return redirect()->route('restaurant.branches.index')

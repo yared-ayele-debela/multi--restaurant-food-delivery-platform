@@ -6,10 +6,22 @@ import { fetchCategories, fetchRestaurant, fetchRestaurants, toMediaUrl } from "
 import CategoryCard from "../components/cards/CategoryCard";
 import ProductCard from "../components/cards/ProductCard";
 import RestaurantCard from "../components/cards/RestaurantCard";
+import { useLocationContext } from "../context/LocationContext";
+import { haversineDistanceKm, parseCoordinate } from "../utils/location";
 
 function toCurrency(value) {
   const amount = Number.parseFloat(value || "0");
   return `$${amount.toFixed(2)}`;
+}
+
+function toRestaurantDistance(restaurant, location) {
+  if (!location) {
+    return null;
+  }
+  return haversineDistanceKm(
+    { lat: location.lat, lng: location.lng },
+    { lat: parseCoordinate(restaurant.latitude), lng: parseCoordinate(restaurant.longitude) },
+  );
 }
 
 function categoryIcon(name) {
@@ -25,6 +37,7 @@ function categoryIcon(name) {
 }
 
 export default function HomePage() {
+  const { location } = useLocationContext();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [restaurants, setRestaurants] = useState([]);
@@ -97,7 +110,26 @@ export default function HomePage() {
   }, []);
 
   const highlightedRestaurants = useMemo(() => restaurants.slice(0, 3), [restaurants]);
-  const nearbyRestaurants = useMemo(() => restaurants.slice(0, 8), [restaurants]);
+  const nearbyRestaurants = useMemo(() => {
+    if (!location) {
+      return restaurants.slice(0, 8);
+    }
+    const withDistance = restaurants
+      .map((restaurant) => {
+        const distance = haversineDistanceKm(
+          { lat: location.lat, lng: location.lng },
+          { lat: parseCoordinate(restaurant.latitude), lng: parseCoordinate(restaurant.longitude) },
+        );
+        return { restaurant, distance };
+      })
+      .filter((item) => item.distance !== null)
+      .sort((a, b) => a.distance - b.distance);
+
+    if (withDistance.length === 0) {
+      return restaurants.slice(0, 8);
+    }
+    return withDistance.slice(0, 8).map((item) => item.restaurant);
+  }, [restaurants, location]);
   const heroImage = toMediaUrl(restaurants[0]?.images?.[0]?.image_path) || "https://picsum.photos/id/1060/1280/720";
 
   return (
@@ -130,33 +162,33 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm sm:p-6 lg:grid-cols-2 lg:items-center">
+      <section className="grid grid-cols-1 gap-5 rounded-2xl border border-[#E8B04A]/25 bg-[#F2E6D8] p-5 text-[#333333] shadow-[0_8px_20px_rgba(51,51,51,0.06)] sm:p-6 lg:grid-cols-2 lg:items-center">
         <div className="space-y-4">
-          <p className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+          <p className="inline-flex rounded-full border border-[#E8B04A]/25 bg-[#FFF8F0] px-3 py-1 text-xs font-medium text-[#333333]/80">
             Multi-restaurant marketplace
           </p>
           <h2 className="text-2xl font-semibold tracking-tight sm:text-4xl">
             Find food you love, delivered fast
           </h2>
-          <p className="text-sm text-[var(--color-muted)] sm:text-base">
+          <p className="text-sm text-[#333333]/75 sm:text-base">
             Search by restaurant name or cuisine, compare ETAs, and checkout in seconds.
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
-              className="w-full rounded-lg border border-[var(--color-border)] bg-transparent px-4 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+              className="min-h-11 w-full rounded-xl border border-[#E8B04A]/35 bg-[#FFF8F0] px-4 py-2.5 text-sm text-[#333333] outline-none focus:ring-2 focus:ring-[#E8B04A]/40"
               placeholder="Search restaurants or cuisine"
             />
             <Link
               to="/restaurants"
-              className="inline-flex items-center justify-center rounded-lg bg-[var(--color-accent)] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--color-accent-hover)]"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#E8B04A] px-5 py-2.5 text-sm font-semibold text-[#333333] transition hover:brightness-95"
             >
               Find food
             </Link>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-[var(--color-border)]">
+        <div className="overflow-hidden rounded-xl border border-[#E8B04A]/25 bg-[#FFF8F0]">
           <img
             src={heroImage}
             srcSet={`${heroImage} 1280w`}
@@ -185,6 +217,7 @@ export default function HomePage() {
               category={`Min order ${toCurrency(restaurant.minimum_order_amount)}`}
               deliveryFee={toCurrency(restaurant.delivery_fee)}
               discountLabel="Fresh Picks"
+              distanceKm={toRestaurantDistance(restaurant, location)}
             />
           ))}
         </div>
@@ -231,6 +264,7 @@ export default function HomePage() {
               deliveryTime={restaurant.address_line || restaurant.city || "Nearby"}
               category={`${restaurant.city || "City"} • Min ${toCurrency(restaurant.minimum_order_amount)}`}
               deliveryFee={toCurrency(restaurant.delivery_fee)}
+              distanceKm={toRestaurantDistance(restaurant, location)}
             />
           ))}
         </div>

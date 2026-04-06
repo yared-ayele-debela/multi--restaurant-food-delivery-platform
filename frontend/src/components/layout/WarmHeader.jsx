@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { MapPin, Menu, Search, ShoppingCart, X } from "lucide-react";
+import { useLocationContext } from "../../context/LocationContext";
 
 const navItems = [
   { to: "/", label: "Home" },
-  { to: "/restaurants", label: "Restaurants" },
-  { to: "/account", label: "About" },
+  { to: "/restaurants", label: "Restaurants" }
 ];
 
 function navClass({ isActive }) {
@@ -19,8 +19,10 @@ function navClass({ isActive }) {
 
 export default function WarmHeader({ cartCount, user, onLogout, settings = {} }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { location, openPicker } = useLocationContext();
   const siteName = settings.site_name || "Food Delivery";
   const logoUrl = settings.logo_url || "";
+  const locationLabel = location?.label || "Select location";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#E8B04A]/25 bg-[#FFF8F0]/95 shadow-[0_6px_16px_rgba(51,51,51,0.05)] backdrop-blur">
@@ -54,27 +56,16 @@ export default function WarmHeader({ cartCount, user, onLogout, settings = {} })
         </nav>
 
         <div className="ml-auto hidden items-center gap-2 md:flex">
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#333333]/60">
-              <Search size={16} />
-            </span>
-            <input
-              placeholder="Search food or restaurant"
-              className="min-h-11 w-56 rounded-full border border-[#E8B04A]/25 bg-[#F2E6D8] py-2 pl-9 pr-3 text-sm text-[#333333] outline-none placeholder:text-[#333333]/55 focus:ring-2 focus:ring-[#E8B04A]/40"
-            />
-          </div>
-
-          <div className="relative">
+          <button
+            type="button"
+            onClick={openPicker}
+            className="relative inline-flex min-h-11 items-center rounded-full border border-[#E8B04A]/25 bg-[#F2E6D8] py-2 pl-9 pr-3 text-sm text-[#333333] outline-none focus:ring-2 focus:ring-[#E8B04A]/40"
+          >
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#333333]/60">
               <MapPin size={16} />
             </span>
-            <select className="min-h-11 rounded-full border border-[#E8B04A]/25 bg-[#F2E6D8] py-2 pl-9 pr-3 text-sm text-[#333333] outline-none focus:ring-2 focus:ring-[#E8B04A]/40">
-              <option>Current location</option>
-              <option>Addis Ababa</option>
-              <option>Hawassa</option>
-              <option>Bahir Dar</option>
-            </select>
-          </div>
+            <span className="max-w-[180px] truncate">{locationLabel}</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -145,11 +136,13 @@ export default function WarmHeader({ cartCount, user, onLogout, settings = {} })
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#333333]/60">
                   <MapPin size={16} />
                 </span>
-                <select className="min-h-11 w-full rounded-full border border-[#E8B04A]/25 bg-[#F2E6D8] py-2 pl-9 pr-3 text-sm text-[#333333] outline-none">
-                  <option>Current location</option>
-                  <option>Addis Ababa</option>
-                  <option>Hawassa</option>
-                </select>
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  className="min-h-11 w-full rounded-full border border-[#E8B04A]/25 bg-[#F2E6D8] py-2 pl-9 pr-3 text-left text-sm text-[#333333] outline-none"
+                >
+                  {locationLabel}
+                </button>
               </div>
             </div>
 

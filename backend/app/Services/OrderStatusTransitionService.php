@@ -14,6 +14,7 @@ class OrderStatusTransitionService
     public function __construct(
         private OrderDeliveryService $orderDeliveryService,
         private RestaurantWalletService $restaurantWalletService,
+        private PlatformWalletService $platformWalletService,
         private LoyaltyService $loyaltyService,
     ) {}
 
@@ -99,6 +100,7 @@ class OrderStatusTransitionService
             if ($to === OrderStatus::Completed) {
                 $completed = $order->fresh(['user']);
                 $this->restaurantWalletService->creditForCompletedOrder($completed);
+                $this->platformWalletService->creditCommissionForCompletedOrder($completed);
                 $this->loyaltyService->accrueForCompletedOrder($completed);
             }
 

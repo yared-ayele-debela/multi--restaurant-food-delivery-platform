@@ -63,6 +63,11 @@
                     </a>
                     <ul class="sub-menu" aria-expanded="false">
                         <li>
+                            <a href="{{ route('restaurant.settings.edit') }}">
+                                <span data-key="t-restaurant-profile">Restaurant Profile</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="{{ route('restaurant.branches.index') }}">
                                 <span data-key="t-branches">Branches</span>
                             </a>

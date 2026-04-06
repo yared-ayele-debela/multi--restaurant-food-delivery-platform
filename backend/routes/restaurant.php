@@ -9,6 +9,7 @@ use App\Http\Controllers\Restaurant\ProductAddonController;
 use App\Http\Controllers\Restaurant\ProductController;
 use App\Http\Controllers\Restaurant\ProductSizeController;
 use App\Http\Controllers\Restaurant\ProductStockController;
+use App\Http\Controllers\Restaurant\SettingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -87,6 +88,10 @@ Route::middleware(['auth', 'restaurant.owner', 'web'])
 
         // Branches
         Route::resource('branches', BranchController::class);
+
+        // Restaurant Profile Settings
+        Route::get('settings', [SettingController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
 
         // Operating Hours
         Route::get('hours', [HourController::class, 'index'])->name('hours.index');
